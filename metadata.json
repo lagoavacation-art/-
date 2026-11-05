@@ -1,0 +1,6 @@
+{
+  "name": "LAGOA BI — Controle de Confirmações e Apresentações",
+  "description": "Painel de Business Intelligence executivo e operacional para controle quantitativo de casais confirmados e apresentações comerciais do Grupo Lagoa Quente / Mini-Vac.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
