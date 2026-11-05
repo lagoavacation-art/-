@@ -95,6 +95,7 @@ function getAggregatedBIData() {
   const COL_CONF_DATE = 0;
   const COL_CONSULTOR = 1;
   const COL_SDR = 2;
+  const COL_VALOR = 4;
   const COL_RESERVA = 7;
   const COL_HOTEL = 8;
   const COL_TIPO = 9;
@@ -106,11 +107,31 @@ function getAggregatedBIData() {
   let totalOutrosTipos = 0;
 
   const rawNormalRecords = [];
+  const financialRecords = [];
   const auditIssues = [];
 
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
     const tipo = String(row[COL_TIPO] || "").trim().toUpperCase();
+
+    // Extração Financeira Independente (RESERVA NORMAL e ADICIONAL)
+    if (tipo === "RESERVA NORMAL" || tipo === "ADICIONAL") {
+      const confDateFin = parseDateValue(row[COL_CONF_DATE]);
+      const confYMFibr = confDateFin ? formatYearMonth(confDateFin) : "SEM_DATA";
+      const valor = parseCurrency(row[COL_VALOR]);
+
+      financialRecords.push({
+        tipo: tipo,
+        confYM: confYMFibr,
+        confDateIso: confDateFin ? formatDateIso(confDateFin) : null,
+        confDateStr: formatDateStr(confDateFin),
+        valor: valor,
+        consultor: String(row[COL_CONSULTOR] || "NÃO INFORMADO").trim().toUpperCase(),
+        sdr: String(row[COL_SDR] || "NÃO INFORMADO").trim().toUpperCase(),
+        hotel: String(row[COL_HOTEL] || "NÃO INFORMADO").trim().toUpperCase(),
+        reservaId: String(row[COL_RESERVA] || "").trim()
+      });
+    }
 
     if (tipo === "ADICIONAL") {
       totalAdicional++;
@@ -225,6 +246,7 @@ function getAggregatedBIData() {
   const confirmationFlow = calculateConfirmationFlow(uniqueCouples);
   const confirmationMatrix = calculateConfirmationMatrix(uniqueCouples);
   const operationalAgenda = calculateOperationalAgenda(uniqueCouples, now);
+  const financialData = calculateFinancialData(financialRecords, now);
 
   return {
     success: true,
@@ -246,7 +268,8 @@ function getAggregatedBIData() {
     futurePortfolio: futurePortfolio,
     confirmationFlow: confirmationFlow,
     confirmationMatrix: confirmationMatrix,
-    operationalAgenda: operationalAgenda
+    operationalAgenda: operationalAgenda,
+    financialData: financialData
   };
 }
 
@@ -674,4 +697,197 @@ function formatMonthLabel(ym) {
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
   return (nomes[m - 1] || ym) + "/" + y;
+}
+
+function formatDateIso(date) {
+  if (!date) return null;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + d;
+}
+
+function parseCurrency(val) {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  const str = String(val).trim();
+  if (!str) return 0;
+  let cleaned = str.replace(/[R$\s"']/g, "");
+  if (cleaned.indexOf(",") !== -1) {
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  } else {
+    const dotCount = (cleaned.match(/\./g) || []).length;
+    if (dotCount > 1) {
+      cleaned = cleaned.replace(/\./g, "");
+    }
+  }
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : Math.round(num * 100) / 100;
+}
+
+function calculateFinancialData(records, refDate) {
+  let totalNormal = 0;
+  let totalAdicional = 0;
+  let zerados = 0;
+  let validos = 0;
+
+  const monthsMap = {};
+  const hotelMap = {};
+  const consultorMap = {};
+  const sdrMap = {};
+
+  records.forEach(function(r) {
+    if (r.valor <= 0) zerados++;
+    else validos++;
+
+    if (r.tipo === "RESERVA NORMAL") totalNormal++;
+    if (r.tipo === "ADICIONAL") totalAdicional++;
+
+    const ym = r.confYM;
+    if (ym && ym !== "SEM_DATA") {
+      if (!monthsMap[ym]) monthsMap[ym] = { normal: 0, adicional: 0 };
+      if (r.tipo === "RESERVA NORMAL") monthsMap[ym].normal += r.valor;
+      else monthsMap[ym].adicional += r.valor;
+    }
+
+    const h = r.hotel || "NÃO INFORMADO";
+    if (!hotelMap[h]) hotelMap[h] = { normal: 0, adicional: 0 };
+    if (r.tipo === "RESERVA NORMAL") hotelMap[h].normal += r.valor;
+    else hotelMap[h].adicional += r.valor;
+
+    const c = r.consultor || "NÃO INFORMADO";
+    if (!consultorMap[c]) consultorMap[c] = { normal: 0, adicional: 0 };
+    if (r.tipo === "RESERVA NORMAL") consultorMap[c].normal += r.valor;
+    else consultorMap[c].adicional += r.valor;
+
+    const s = r.sdr || "NÃO INFORMADO";
+    if (!sdrMap[s]) sdrMap[s] = { normal: 0, adicional: 0 };
+    if (r.tipo === "RESERVA NORMAL") sdrMap[s].normal += r.valor;
+    else sdrMap[s].adicional += r.valor;
+  });
+
+  const sortedYMs = Object.keys(monthsMap).sort();
+  const currentYM = formatYearMonth(refDate);
+
+  const monthlyFlow = [];
+  let prevTotal = null;
+
+  sortedYMs.forEach(function(ym) {
+    const data = monthsMap[ym];
+    const vNormal = Math.round(data.normal * 100) / 100;
+    const vAdicional = Math.round(data.adicional * 100) / 100;
+    const vTotal = Math.round((vNormal + vAdicional) * 100) / 100;
+    const pctAdicional = vTotal > 0 ? Math.round(((vAdicional / vTotal) * 100) * 10) / 10 : 0;
+    const variacaoMensalPct = prevTotal !== null && prevTotal > 0
+      ? Math.round((((vTotal - prevTotal) / prevTotal) * 100) * 10) / 10
+      : null;
+
+    monthlyFlow.push({
+      mesAno: ym,
+      label: formatMonthLabel(ym),
+      valorNormal: vNormal,
+      valorAdicional: vAdicional,
+      valorTotal: vTotal,
+      percentualAdicional: pctAdicional,
+      variacaoMensalPct: variacaoMensalPct,
+      isCurrentMonth: ym === currentYM
+    });
+
+    prevTotal = vTotal;
+  });
+
+  const summaryItem = monthlyFlow.find(function(m) { return m.mesAno === currentYM; }) || monthlyFlow[monthlyFlow.length - 1];
+  const mesReferencia = summaryItem ? summaryItem.mesAno : currentYM;
+  const mesReferenciaLabel = summaryItem ? summaryItem.label : formatMonthLabel(currentYM);
+  const valorTotalMes = summaryItem ? summaryItem.valorTotal : 0;
+  const valorNormalMes = summaryItem ? summaryItem.valorNormal : 0;
+  const valorAdicionalMes = summaryItem ? summaryItem.valorAdicional : 0;
+  const participacaoAdicionalMes = summaryItem ? summaryItem.percentualAdicional : 0;
+
+  const summaryIndex = summaryItem ? monthlyFlow.indexOf(summaryItem) : -1;
+  const prevMonthItem = summaryIndex > 0 ? monthlyFlow[summaryIndex - 1] : null;
+  const valorTotalMesAnterior = prevMonthItem ? prevMonthItem.valorTotal : 0;
+  const variacaoMesAnteriorDiff = Math.round((valorTotalMes - valorTotalMesAnterior) * 100) / 100;
+  const variacaoMesAnteriorPct = valorTotalMesAnterior > 0
+    ? Math.round((((valorTotalMes - valorTotalMesAnterior) / valorTotalMesAnterior) * 100) * 10) / 10
+    : 0;
+
+  const anoRef = mesReferencia.split("-")[0];
+  const anoPrefix = anoRef + "-";
+  const acumuladoAno = Math.round(
+    monthlyFlow
+      .filter(function(m) { return m.mesAno.indexOf(anoPrefix) === 0; })
+      .reduce(function(acc, m) { return acc + m.valorTotal; }, 0) * 100
+  ) / 100;
+
+  const dailyMap = {};
+  records.forEach(function(r) {
+    if (r.confYM === mesReferencia && r.confDateIso) {
+      if (!dailyMap[r.confDateIso]) {
+        dailyMap[r.confDateIso] = { normal: 0, adicional: 0, dataStr: r.confDateStr };
+      }
+      if (r.tipo === "RESERVA NORMAL") dailyMap[r.confDateIso].normal += r.valor;
+      else dailyMap[r.confDateIso].adicional += r.valor;
+    }
+  });
+
+  const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const dailyFlow = Object.keys(dailyMap).sort().map(function(iso) {
+    const d = dailyMap[iso];
+    const vNorm = Math.round(d.normal * 100) / 100;
+    const vAdic = Math.round(d.adicional * 100) / 100;
+    const parts = iso.split("-");
+    const dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    const diaSemana = diasSemana[dt.getDay()] || "";
+    return {
+      dataIso: iso,
+      dataStr: d.dataStr,
+      diaSemana: diaSemana,
+      valorNormal: vNorm,
+      valorAdicional: vAdic,
+      valorTotal: Math.round((vNorm + vAdic) * 100) / 100
+    };
+  });
+
+  const totalGeral = records.reduce(function(acc, r) { return acc + r.valor; }, 0);
+
+  function mapDimension(mapObj) {
+    return Object.keys(mapObj).map(function(nome) {
+      const vals = mapObj[nome];
+      const vNorm = Math.round(vals.normal * 100) / 100;
+      const vAdic = Math.round(vals.adicional * 100) / 100;
+      const vTot = Math.round((vNorm + vAdic) * 100) / 100;
+      const pct = totalGeral > 0 ? Math.round(((vTot / totalGeral) * 100) * 10) / 10 : 0;
+      return { nome: nome, valorNormal: vNorm, valorAdicional: vAdic, valorTotal: vTot, percentual: pct };
+    }).sort(function(a, b) { return b.valorTotal - a.valorTotal; });
+  }
+
+  return {
+    summary: {
+      mesReferencia: mesReferencia,
+      mesReferenciaLabel: mesReferenciaLabel,
+      dataConsulta: formatDateIso(refDate),
+      valorTotalMes: valorTotalMes,
+      valorNormalMes: valorNormalMes,
+      valorAdicionalMes: valorAdicionalMes,
+      participacaoAdicionalMes: participacaoAdicionalMes,
+      valorTotalMesAnterior: valorTotalMesAnterior,
+      variacaoMesAnteriorDiff: variacaoMesAnteriorDiff,
+      variacaoMesAnteriorPct: variacaoMesAnteriorPct,
+      acumuladoAno: acumuladoAno,
+      acumuladoAnoLabel: "Acumulado " + anoRef
+    },
+    monthlyFlow: monthlyFlow,
+    dailyFlow: dailyFlow,
+    porHotel: mapDimension(hotelMap),
+    porConsultor: mapDimension(consultorMap),
+    porSdr: mapDimension(sdrMap),
+    auditFinanceiro: {
+      totalRegistrosAnalisados: records.length,
+      totalNormal: totalNormal,
+      totalAdicional: totalAdicional,
+      registrosZeradosOuVazios: zerados,
+      registrosValidos: validos
+    }
+  };
 }

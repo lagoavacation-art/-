@@ -25,6 +25,12 @@ import {
   CommercialTeamData,
   TeamMemberMetric,
   ExecutiveSummary,
+  FinancialMonthlyItem,
+  FinancialDailyItem,
+  FinancialSummary,
+  FinancialTeamOrHotelMetric,
+  FinancialRecord,
+  FinancialDataset,
   BIDataset
 } from '../types/bi';
 
@@ -75,6 +81,7 @@ export function processRawSheetData(
   const COL_CONF_DATE = 0;
   const COL_CONSULTOR = 1;
   const COL_SDR = 2;
+  const COL_VALOR = 4;
   const COL_RESERVA = 7;
   const COL_HOTEL = 8;
   const COL_TIPO = 9;
@@ -86,6 +93,7 @@ export function processRawSheetData(
   let totalReservaNormal = 0;
 
   const rawNormalRecords: InternalRecord[] = [];
+  const financialRecords: FinancialRecord[] = [];
   const auditIssues: AuditIssue[] = [];
 
   for (let i = 1; i < rows.length; i++) {
@@ -93,7 +101,29 @@ export function processRawSheetData(
     const lineNum = i + 1;
     const tipo = (row[COL_TIPO] || '').trim().toUpperCase();
 
-    // REGRA ABSOLUTA: contabilizar somente RESERVA NORMAL. Ignorar ADICIONAL.
+    // Extração Financeira Independente (RESERVA NORMAL e ADICIONAL)
+    if (tipo === 'RESERVA NORMAL' || tipo === 'ADICIONAL') {
+      const confDateStrFin = (row[COL_CONF_DATE] || '').trim();
+      const confDateFin = parseDate(confDateStrFin);
+      const confYMFibr = confDateFin ? formatYearMonth(confDateFin) : 'SEM_DATA';
+      const confDateIsoFin = confDateFin ? confDateFin.toISOString().slice(0, 10) : null;
+      const valorPago = parseCurrency(row[COL_VALOR]);
+
+      financialRecords.push({
+        line: lineNum,
+        tipo: tipo as 'RESERVA NORMAL' | 'ADICIONAL',
+        confYM: confYMFibr,
+        confDateIso: confDateIsoFin,
+        confDateStr: confDateStrFin,
+        valor: valorPago,
+        consultor: normalizeName(row[COL_CONSULTOR]),
+        sdr: normalizeName(row[COL_SDR]),
+        hotel: normalizeHotel(row[COL_HOTEL]),
+        reservaId: (row[COL_RESERVA] || '').trim().replace(/\s+/g, ' ')
+      });
+    }
+
+    // REGRA ABSOLUTA COMERCIAL: contabilizar casais somente em RESERVA NORMAL. Ignorar ADICIONAL.
     if (tipo === 'ADICIONAL') {
       totalAdicional++;
       continue;
@@ -284,6 +314,8 @@ export function processRawSheetData(
     reservaId: c.reservaId
   }));
 
+  const financialData = calculateFinancialMetrics(financialRecords, todayUtc, targetSummaryYM);
+
   return {
     success: true,
     timestamp: now.toISOString(),
@@ -298,6 +330,7 @@ export function processRawSheetData(
     operationalAgenda,
     teamData,
     executiveSummary,
+    financialData,
     availableFilters: {
       months: availableMonths,
       hotels,
@@ -370,6 +403,37 @@ export function filterDataset(
     refDate
   );
 
+  // Filtro Dinâmico dos Indicadores Financeiros
+  let financialData = dataset.financialData;
+  if (dataset.financialData && dataset.financialData.records) {
+    const recordsByDimension = dataset.financialData.records.filter(r => {
+      if (filters.hotel !== 'all' && r.hotel !== filters.hotel) return false;
+      if (filters.consultor !== 'all' && r.consultor !== filters.consultor) return false;
+      if (filters.sdr !== 'all' && r.sdr !== filters.sdr) return false;
+      return true;
+    });
+
+    const recordsExact = filters.mesAno !== 'all'
+      ? recordsByDimension.filter(r => r.confYM === filters.mesAno)
+      : recordsByDimension;
+
+    const targetFinYM = filters.mesAno !== 'all'
+      ? filters.mesAno
+      : dataset.financialData.summary.mesReferencia;
+
+    const calculatedFin = calculateFinancialMetrics(
+      recordsExact,
+      refDate,
+      targetFinYM,
+      recordsByDimension
+    );
+
+    financialData = {
+      ...calculatedFin,
+      records: dataset.financialData.records
+    };
+  }
+
   return {
     ...dataset,
     monthlyFlow,
@@ -379,6 +443,7 @@ export function filterDataset(
     operationalAgenda,
     teamData,
     executiveSummary,
+    financialData,
     audit: {
       ...dataset.audit,
       casaisValidosContabilizados: reconstructedCouples.length
@@ -1135,4 +1200,252 @@ function getWeekNumber(d: Date): number {
     target.setUTCMonth(0, 1 + ((4 - target.getUTCDay()) + 7) % 7);
   }
   return 1 + Math.ceil((firstThursday - target.getTime()) / 604800000);
+}
+
+export function parseCurrency(val: any): number {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  const str = String(val).trim();
+  if (!str) return 0;
+
+  // Remove R$, espaços, aspas
+  let cleaned = str.replace(/[R$\s"']/g, '');
+
+  if (cleaned.includes(',')) {
+    // Formato brasileiro: 1.234,56 -> remove pontos de milhar, substitui vírgula por ponto
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  } else {
+    // Caso com múltiplos pontos (separador de milhar sem centavos)
+    const dotCount = (cleaned.match(/\./g) || []).length;
+    if (dotCount > 1) {
+      cleaned = cleaned.replace(/\./g, '');
+    }
+  }
+
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : Math.round(num * 100) / 100;
+}
+
+export function calculateFinancialMetrics(
+  records: FinancialRecord[],
+  refDate: Date,
+  targetSummaryYM?: string,
+  allHistoricalRecords?: FinancialRecord[]
+): FinancialDataset {
+  let totalNormal = 0;
+  let totalAdicional = 0;
+  let zerados = 0;
+  let validos = 0;
+
+  // Registros para a evolução mensal histórica
+  const recordsForMonthly = allHistoricalRecords || records;
+
+  const monthsMap = new Map<string, { normal: number; adicional: number }>();
+  for (const r of recordsForMonthly) {
+    const ym = r.confYM;
+    if (ym && ym !== 'SEM_DATA') {
+      if (!monthsMap.has(ym)) {
+        monthsMap.set(ym, { normal: 0, adicional: 0 });
+      }
+      const m = monthsMap.get(ym)!;
+      if (r.tipo === 'RESERVA NORMAL') m.normal += r.valor;
+      else m.adicional += r.valor;
+    }
+  }
+
+  const hotelMap = new Map<string, { normal: number; adicional: number }>();
+  const consultorMap = new Map<string, { normal: number; adicional: number }>();
+  const sdrMap = new Map<string, { normal: number; adicional: number }>();
+
+  for (const r of records) {
+    if (r.valor <= 0) {
+      zerados++;
+    } else {
+      validos++;
+    }
+
+    if (r.tipo === 'RESERVA NORMAL') totalNormal++;
+    if (r.tipo === 'ADICIONAL') totalAdicional++;
+
+    // Hotel
+    const h = r.hotel || 'NÃO INFORMADO';
+    if (!hotelMap.has(h)) hotelMap.set(h, { normal: 0, adicional: 0 });
+    const hItem = hotelMap.get(h)!;
+    if (r.tipo === 'RESERVA NORMAL') hItem.normal += r.valor;
+    else hItem.adicional += r.valor;
+
+    // Consultor
+    const c = r.consultor || 'NÃO INFORMADO';
+    if (!consultorMap.has(c)) consultorMap.set(c, { normal: 0, adicional: 0 });
+    const cItem = consultorMap.get(c)!;
+    if (r.tipo === 'RESERVA NORMAL') cItem.normal += r.valor;
+    else cItem.adicional += r.valor;
+
+    // SDR
+    const s = r.sdr || 'NÃO INFORMADO';
+    if (!sdrMap.has(s)) sdrMap.set(s, { normal: 0, adicional: 0 });
+    const sItem = sdrMap.get(s)!;
+    if (r.tipo === 'RESERVA NORMAL') sItem.normal += r.valor;
+    else sItem.adicional += r.valor;
+  }
+
+  // Ordena meses cronologicamente (antigo para recente) para gráficos e MoM
+  const sortedYMs = Array.from(monthsMap.keys()).sort();
+  const currentYM = formatYearMonth(refDate);
+
+  const monthlyFlow: FinancialMonthlyItem[] = [];
+  let prevTotal: number | null = null;
+
+  for (const ym of sortedYMs) {
+    const data = monthsMap.get(ym)!;
+    const vNormal = Math.round(data.normal * 100) / 100;
+    const vAdicional = Math.round(data.adicional * 100) / 100;
+    const vTotal = Math.round((vNormal + vAdicional) * 100) / 100;
+    const pctAdicional = vTotal > 0 ? Math.round(((vAdicional / vTotal) * 100) * 10) / 10 : 0;
+    const variacaoMensalPct = prevTotal !== null && prevTotal > 0 
+      ? Math.round((((vTotal - prevTotal) / prevTotal) * 100) * 10) / 10 
+      : null;
+
+    monthlyFlow.push({
+      mesAno: ym,
+      label: formatMonthLabel(ym),
+      valorNormal: vNormal,
+      valorAdicional: vAdicional,
+      valorTotal: vTotal,
+      percentualAdicional: pctAdicional,
+      variacaoMensalPct,
+      isCurrentMonth: ym === currentYM
+    });
+
+    prevTotal = vTotal;
+  }
+
+  // Mês de referência do sumário
+  let summaryItem: FinancialMonthlyItem | undefined;
+  if (targetSummaryYM && targetSummaryYM !== 'all') {
+    summaryItem = monthlyFlow.find(m => m.mesAno === targetSummaryYM);
+  }
+  if (!summaryItem) {
+    summaryItem = monthlyFlow.find(m => m.mesAno === currentYM) || monthlyFlow[monthlyFlow.length - 1];
+  }
+
+  const mesReferencia = summaryItem?.mesAno || currentYM;
+  const mesReferenciaLabel = summaryItem?.label || formatMonthLabel(currentYM);
+  const valorTotalMes = summaryItem?.valorTotal || 0;
+  const valorNormalMes = summaryItem?.valorNormal || 0;
+  const valorAdicionalMes = summaryItem?.valorAdicional || 0;
+  const participacaoAdicionalMes = summaryItem?.percentualAdicional || 0;
+
+  // Comparação com mês anterior (MoM)
+  const summaryIndex = summaryItem ? monthlyFlow.indexOf(summaryItem) : -1;
+  const prevMonthItem = summaryIndex > 0 ? monthlyFlow[summaryIndex - 1] : null;
+  const valorTotalMesAnterior = prevMonthItem?.valorTotal || 0;
+  const variacaoMesAnteriorDiff = Math.round((valorTotalMes - valorTotalMesAnterior) * 100) / 100;
+  const variacaoMesAnteriorPct = valorTotalMesAnterior > 0 
+    ? Math.round((((valorTotalMes - valorTotalMesAnterior) / valorTotalMesAnterior) * 100) * 10) / 10 
+    : 0;
+
+  // Acumulado do Ano (Ano do mês de referência)
+  const [anoRef] = mesReferencia.split('-');
+  const anoPrefix = `${anoRef}-`;
+  const acumuladoAno = Math.round(
+    monthlyFlow
+      .filter(m => m.mesAno.startsWith(anoPrefix))
+      .reduce((acc, m) => acc + m.valorTotal, 0) * 100
+  ) / 100;
+  const acumuladoAnoLabel = `Acumulado ${anoRef}`;
+
+  // Evolução Diária no mês de referência
+  const dailyMap = new Map<string, { normal: number; adicional: number; dataStr: string }>();
+  for (const r of records) {
+    if (r.confYM === mesReferencia && r.confDateIso) {
+      if (!dailyMap.has(r.confDateIso)) {
+        dailyMap.set(r.confDateIso, { normal: 0, adicional: 0, dataStr: r.confDateStr });
+      }
+      const d = dailyMap.get(r.confDateIso)!;
+      if (r.tipo === 'RESERVA NORMAL') d.normal += r.valor;
+      else d.adicional += r.valor;
+    }
+  }
+
+  const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const dailyFlow: FinancialDailyItem[] = Array.from(dailyMap.keys()).sort().map(iso => {
+    const dData = dailyMap.get(iso)!;
+    const vNorm = Math.round(dData.normal * 100) / 100;
+    const vAdic = Math.round(dData.adicional * 100) / 100;
+    const vTot = Math.round((vNorm + vAdic) * 100) / 100;
+    const dateObj = new Date(iso + 'T00:00:00Z');
+    const diaSemana = diasSemana[dateObj.getUTCDay()] || '';
+    return {
+      dataIso: iso,
+      dataStr: dData.dataStr,
+      diaSemana,
+      valorNormal: vNorm,
+      valorAdicional: vAdic,
+      valorTotal: vTot
+    };
+  });
+
+  // Agregações por Hotel, Consultor e SDR
+  const totalGeral = records.reduce((acc, r) => acc + r.valor, 0);
+
+  const porHotel: FinancialTeamOrHotelMetric[] = Array.from(hotelMap.entries())
+    .map(([nome, vals]) => {
+      const vNorm = Math.round(vals.normal * 100) / 100;
+      const vAdic = Math.round(vals.adicional * 100) / 100;
+      const vTot = Math.round((vNorm + vAdic) * 100) / 100;
+      const pct = totalGeral > 0 ? Math.round(((vTot / totalGeral) * 100) * 10) / 10 : 0;
+      return { nome, valorNormal: vNorm, valorAdicional: vAdic, valorTotal: vTot, percentual: pct };
+    })
+    .sort((a, b) => b.valorTotal - a.valorTotal);
+
+  const porConsultor: FinancialTeamOrHotelMetric[] = Array.from(consultorMap.entries())
+    .map(([nome, vals]) => {
+      const vNorm = Math.round(vals.normal * 100) / 100;
+      const vAdic = Math.round(vals.adicional * 100) / 100;
+      const vTot = Math.round((vNorm + vAdic) * 100) / 100;
+      const pct = totalGeral > 0 ? Math.round(((vTot / totalGeral) * 100) * 10) / 10 : 0;
+      return { nome, valorNormal: vNorm, valorAdicional: vAdic, valorTotal: vTot, percentual: pct };
+    })
+    .sort((a, b) => b.valorTotal - a.valorTotal);
+
+  const porSdr: FinancialTeamOrHotelMetric[] = Array.from(sdrMap.entries())
+    .map(([nome, vals]) => {
+      const vNorm = Math.round(vals.normal * 100) / 100;
+      const vAdic = Math.round(vals.adicional * 100) / 100;
+      const vTot = Math.round((vNorm + vAdic) * 100) / 100;
+      const pct = totalGeral > 0 ? Math.round(((vTot / totalGeral) * 100) * 10) / 10 : 0;
+      return { nome, valorNormal: vNorm, valorAdicional: vAdic, valorTotal: vTot, percentual: pct };
+    })
+    .sort((a, b) => b.valorTotal - a.valorTotal);
+
+  return {
+    summary: {
+      mesReferencia,
+      mesReferenciaLabel,
+      dataConsulta: refDate.toISOString().slice(0, 10),
+      valorTotalMes,
+      valorNormalMes,
+      valorAdicionalMes,
+      participacaoAdicionalMes,
+      valorTotalMesAnterior,
+      variacaoMesAnteriorDiff,
+      variacaoMesAnteriorPct,
+      acumuladoAno,
+      acumuladoAnoLabel
+    },
+    monthlyFlow,
+    dailyFlow,
+    porHotel,
+    porConsultor,
+    porSdr,
+    auditFinanceiro: {
+      totalRegistrosAnalisados: records.length,
+      totalNormal,
+      totalAdicional,
+      registrosZeradosOuVazios: zerados,
+      registrosValidos: validos
+    },
+    records
+  };
 }

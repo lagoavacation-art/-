@@ -208,6 +208,79 @@ export interface ExecutiveSummary {
   taxaConformidade: number;
 }
 
+export interface FinancialMonthlyItem {
+  mesAno: string; // "YYYY-MM"
+  label: string; // "Novembro/2026"
+  valorNormal: number;
+  valorAdicional: number;
+  valorTotal: number;
+  percentualAdicional: number;
+  variacaoMensalPct: number | null;
+  isCurrentMonth: boolean;
+}
+
+export interface FinancialDailyItem {
+  dataIso: string; // "YYYY-MM-DD"
+  dataStr: string; // "DD/MM/YYYY"
+  diaSemana: string;
+  valorNormal: number;
+  valorAdicional: number;
+  valorTotal: number;
+}
+
+export interface FinancialSummary {
+  mesReferencia: string;
+  mesReferenciaLabel: string;
+  dataConsulta: string;
+  valorTotalMes: number;
+  valorNormalMes: number;
+  valorAdicionalMes: number;
+  participacaoAdicionalMes: number;
+  valorTotalMesAnterior: number;
+  variacaoMesAnteriorDiff: number;
+  variacaoMesAnteriorPct: number;
+  acumuladoAno: number;
+  acumuladoAnoLabel: string;
+}
+
+export interface FinancialTeamOrHotelMetric {
+  nome: string;
+  valorNormal: number;
+  valorAdicional: number;
+  valorTotal: number;
+  percentual: number;
+}
+
+export interface FinancialRecord {
+  line: number;
+  confYM: string;
+  confDateIso: string | null;
+  confDateStr: string;
+  tipo: 'RESERVA NORMAL' | 'ADICIONAL';
+  valor: number;
+  consultor: string;
+  sdr: string;
+  hotel: string;
+  reservaId: string;
+}
+
+export interface FinancialDataset {
+  summary: FinancialSummary;
+  monthlyFlow: FinancialMonthlyItem[];
+  dailyFlow: FinancialDailyItem[];
+  porConsultor: FinancialTeamOrHotelMetric[];
+  porSdr: FinancialTeamOrHotelMetric[];
+  porHotel: FinancialTeamOrHotelMetric[];
+  auditFinanceiro: {
+    totalRegistrosAnalisados: number;
+    totalNormal: number;
+    totalAdicional: number;
+    registrosZeradosOuVazios: number;
+    registrosValidos: number;
+  };
+  records?: FinancialRecord[];
+}
+
 export interface BIDataset {
   success: boolean;
   timestamp: string;
@@ -223,6 +296,7 @@ export interface BIDataset {
   operationalAgenda: OperationalAgenda;
   teamData: CommercialTeamData;
   executiveSummary: ExecutiveSummary;
+  financialData?: FinancialDataset;
   availableFilters: {
     months: Array<{ value: string; label: string }>;
     hotels: string[];

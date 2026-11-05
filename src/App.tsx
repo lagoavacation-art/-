@@ -16,6 +16,7 @@ import { FuturePortfolioView } from './components/views/FuturePortfolioView';
 import { ConfirmationFlowView } from './components/views/ConfirmationFlowView';
 import { OperationalAgendaView } from './components/views/OperationalAgendaView';
 import { CommercialTeamView } from './components/views/CommercialTeamView';
+import { FinancialView } from './components/views/FinancialView';
 import { AuditView } from './components/views/AuditView';
 import { SettingsView } from './components/views/SettingsView';
 
@@ -232,6 +233,7 @@ export default function App() {
             <Route path="/fluxo-confirmacoes" element={<ConfirmationFlowView dataset={filteredDataset} />} />
             <Route path="/agenda" element={<OperationalAgendaView dataset={filteredDataset} />} />
             <Route path="/equipe" element={<CommercialTeamView dataset={filteredDataset} />} />
+            <Route path="/vendas-valores" element={<FinancialView dataset={filteredDataset} />} />
             <Route path="/auditoria" element={<AuditView dataset={dataset} />} />
             <Route
               path="/configuracoes"

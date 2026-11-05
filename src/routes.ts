@@ -9,6 +9,7 @@ export type NavViewId =
   | 'confirmation-flow'
   | 'agenda'
   | 'team'
+  | 'financial'
   | 'audit'
   | 'settings';
 
@@ -62,6 +63,13 @@ export const ROUTES: RouteConfig[] = [
     label: 'Equipe Comercial',
     title: 'Equipe Comercial (SDRs & Consultores)',
     subtitle: 'Volume de casais programados por responsável comercial'
+  },
+  {
+    id: 'financial',
+    path: '/vendas-valores',
+    label: 'Vendas em Valores (R$)',
+    title: 'Vendas em Valores (R$)',
+    subtitle: 'Faturamento registrado por data de confirmação (Reserva Normal + Adicionais)'
   },
   {
     id: 'audit',

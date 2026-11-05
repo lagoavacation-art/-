@@ -11,7 +11,8 @@ import {
   Settings,
   X,
   Building2,
-  RefreshCw
+  RefreshCw,
+  CircleDollarSign
 } from 'lucide-react';
 import { ROUTES, NavViewId } from '../routes';
 
@@ -32,6 +33,7 @@ const NAV_ICONS: Record<NavViewId, React.ComponentType<{ className?: string }>> 
   'confirmation-flow': GitFork,
   agenda: Calendar,
   team: Users,
+  financial: CircleDollarSign,
   audit: ShieldCheck,
   settings: Settings
 };

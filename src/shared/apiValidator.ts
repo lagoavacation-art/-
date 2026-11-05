@@ -2,7 +2,7 @@
  * LAGOA BI — Validador Estrito de Resposta da API do Google Apps Script
  */
 
-import { BIDataset } from '../types/bi';
+import { BIDataset, FinancialRecord } from '../types/bi';
 import {
   calculateMonthlyFlow,
   calculateFuturePortfolio,
@@ -11,6 +11,8 @@ import {
   calculateOperationalAgenda,
   calculateCommercialTeam,
   calculateExecutiveSummary,
+  calculateFinancialMetrics,
+  parseCurrency,
   parseDate,
   formatYearMonth,
   formatMonthLabel,
@@ -215,6 +217,7 @@ function processApiRecordsList(
   let totalReservaNormal = 0;
 
   const rawNormalRecords: InternalRecord[] = [];
+  const financialRecords: FinancialRecord[] = [];
   const auditIssues: any[] = [];
 
   records.forEach((row, idx) => {
@@ -224,6 +227,33 @@ function processApiRecordsList(
     const tipo = String(
       row['TIPO DE RESERVA'] ?? row.tipoReserva ?? row.tipo ?? row.Tipo ?? row.TIPO ?? ''
     ).trim().toUpperCase();
+
+    // Extração Financeira Independente (RESERVA NORMAL e ADICIONAL)
+    if (tipo === 'RESERVA NORMAL' || tipo === 'ADICIONAL') {
+      const confDateStrFin = String(
+        row['DATA DA CONFIRMAÇÃO'] ?? row.dataConfirmacao ?? row.confDate ?? row.CONFIRMACAO ?? ''
+      ).trim();
+      const confDateFin = parseDate(confDateStrFin);
+      const confYMFibr = confDateFin ? formatYearMonth(confDateFin) : 'SEM_DATA';
+      const confDateIsoFin = confDateFin ? confDateFin.toISOString().slice(0, 10) : null;
+      const valorRaw = row['VALOR PAGO'] ?? row.valorPago ?? row.valor ?? row.Valor ?? 0;
+      const valorPago = parseCurrency(valorRaw);
+
+      financialRecords.push({
+        line: lineNum,
+        tipo: tipo as 'RESERVA NORMAL' | 'ADICIONAL',
+        confYM: confYMFibr,
+        confDateIso: confDateIsoFin,
+        confDateStr: confDateStrFin,
+        valor: valorPago,
+        consultor: normalizeName(row['CONSULTOR'] ?? row.consultor ?? row.Consultor),
+        sdr: normalizeName(row['SDR'] ?? row.sdr ?? row.Sdr),
+        hotel: normalizeHotel(row['HOTEL'] ?? row.hotel ?? row.Hotel),
+        reservaId: String(
+          row['RESERVA'] ?? row.reserva ?? row.reservaId ?? row.numeroReserva ?? ''
+        ).trim().replace(/\s+/g, ' ')
+      });
+    }
 
     // REGRA ABSOLUTA: contabilizar somente RESERVA NORMAL
     if (tipo === 'ADICIONAL') {
@@ -408,6 +438,8 @@ function processApiRecordsList(
     reservaId: c.reservaId
   }));
 
+  const financialData = calculateFinancialMetrics(financialRecords, todayUtc, targetSummaryYM);
+
   return {
     success: true,
     timestamp: new Date().toISOString(),
@@ -422,6 +454,7 @@ function processApiRecordsList(
     operationalAgenda,
     teamData,
     executiveSummary,
+    financialData,
     availableFilters: {
       months: availableMonths,
       hotels,
