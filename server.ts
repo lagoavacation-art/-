@@ -347,6 +347,11 @@ app.get('/api/export-audit', async (req: Request, res: Response) => {
   }
 });
 
+// Rota 404 para endpoints da API (garante que /api/* inexistentes nunca retornem index.html)
+app.all('/api/*', (req: Request, res: Response) => {
+  res.status(404).json({ error: 'Endpoint da API não encontrado' });
+});
+
 // ==========================================
 // VITE DEV SERVER OU ARQUIVOS ESTÁTICOS
 // ==========================================
@@ -363,9 +368,21 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
+    const indexPath = path.join(distPath, 'index.html');
+
+    app.use(express.static(distPath, { index: false }));
+
     app.get('*', (req: Request, res: Response) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      // Preserva integridade de rotas de API não encontradas
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'Endpoint da API não encontrado' });
+      }
+
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(500).send('Arquivo index.html não encontrado no diretório dist. Execute npm run build antes de iniciar.');
+      }
     });
   }
 

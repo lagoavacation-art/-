@@ -1,9 +1,9 @@
-import React from 'react';
-import { Menu, RefreshCw, Database, ShieldAlert } from 'lucide-react';
-import { NavViewId } from './Sidebar';
+import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Menu, RefreshCw, Database, ShieldAlert, Share2, Check } from 'lucide-react';
+import { getRouteByPathname } from '../routes';
 
 interface TopHeaderProps {
-  currentView: NavViewId;
   onOpenMobile: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
@@ -13,43 +13,7 @@ interface TopHeaderProps {
   sourceType?: 'apps_script' | 'google_sheet_direct';
 }
 
-const VIEW_TITLES: Record<NavViewId, { title: string; subtitle: string }> = {
-  overview: {
-    title: 'Visão Geral Executiva',
-    subtitle: 'Indicadores consolidados de casais confirmados e agenda de apresentações'
-  },
-  'monthly-flow': {
-    title: 'Evolução e Fluxo Mensal',
-    subtitle: 'Abertura, novas entradas e agenda restante mês a mês'
-  },
-  'future-portfolio': {
-    title: 'Carteira Geral Futura',
-    subtitle: 'Compromissos acumulados e distribuição de apresentações futuras'
-  },
-  'confirmation-flow': {
-    title: 'Fluxo de Confirmações & Horizontes',
-    subtitle: 'Análise de maturação (M+0 a M+3+) e matriz cruzada de confirmação × apresentação'
-  },
-  agenda: {
-    title: 'Agenda & Análise Operacional',
-    subtitle: 'Concentração semanal, diária e distribuição por hotel'
-  },
-  team: {
-    title: 'Equipe Comercial (SDRs & Consultores)',
-    subtitle: 'Volume de casais programados por responsável comercial'
-  },
-  audit: {
-    title: 'Auditoria & Confiabilidade de Dados',
-    subtitle: 'Reconciliação matemática estrita da planilha e auditoria de pendências'
-  },
-  settings: {
-    title: 'Configurações de Conexão',
-    subtitle: 'Integração Google Apps Script e sincronização do painel'
-  }
-};
-
 export const TopHeader: React.FC<TopHeaderProps> = ({
-  currentView,
   onOpenMobile,
   onRefresh,
   isRefreshing,
@@ -58,7 +22,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   auditIssuesCount,
   sourceType
 }) => {
-  const currentViewInfo = VIEW_TITLES[currentView];
+  const location = useLocation();
+  const currentRoute = getRouteByPathname(location.pathname);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = async () => {
+    try {
+      const fullUrl = window.location.origin + location.pathname + location.search;
+      await navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (err) {
+      console.error('Falha ao copiar link:', err);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-xs sm:px-6 lg:px-8">
@@ -79,17 +56,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             </span>
             <span className="text-xs text-slate-300 font-bold">/</span>
             <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate">
-              {currentViewInfo.title}
+              {currentRoute.title}
             </h1>
           </div>
           <p className="hidden text-xs text-slate-500 sm:block truncate max-w-xl">
-            {currentViewInfo.subtitle}
+            {currentRoute.subtitle}
           </p>
         </div>
       </div>
 
-      {/* Right zone: Contextual info & Refresh CTA */}
-      <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+      {/* Right zone: Contextual info, Copy Link, Refresh CTA */}
+      <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0">
         <div className="hidden md:flex flex-col items-end text-xs">
           <div className="flex items-center gap-1.5 text-slate-600 font-medium">
             <Database className="h-3.5 w-3.5 text-blue-600" />
@@ -107,6 +84,31 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </div>
         )}
 
+        {/* Botão Copiar link desta página */}
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors shadow-2xs whitespace-nowrap ${
+            copied
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+          }`}
+          title="Copiar endereço compartilhável desta aba com os filtros atuais"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Link copiado!</span>
+            </>
+          ) : (
+            <>
+              <Share2 className="h-3.5 w-3.5 text-slate-600" />
+              <span className="hidden sm:inline">Copiar link</span>
+            </>
+          )}
+        </button>
+
+        {/* Botão Atualizar agora */}
         <button
           type="button"
           onClick={onRefresh}

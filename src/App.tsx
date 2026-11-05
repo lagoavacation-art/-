@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Sidebar, NavViewId } from './components/Sidebar';
+import { Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { FilterBar } from './components/FilterBar';
 import { DisconnectedState } from './components/DisconnectedState';
@@ -23,7 +24,10 @@ import { filterDataset } from './shared/biEngine';
 import { RefreshCw, Building2 } from 'lucide-react';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<NavViewId>('overview');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [dataset, setDataset] = useState<BIDataset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -31,13 +35,13 @@ export default function App() {
   const [isOpenMobile, setIsOpenMobile] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
-  // Filtros Globais
-  const [filters, setFilters] = useState<FilterState>({
-    mesAno: 'all',
-    hotel: 'all',
-    consultor: 'all',
-    sdr: 'all'
-  });
+  // Filtros Globais sincronizados com Parâmetros de URL (mes, hotel, consultor, sdr)
+  const filters: FilterState = useMemo(() => ({
+    mesAno: searchParams.get('mes') || 'all',
+    hotel: searchParams.get('hotel') || 'all',
+    consultor: searchParams.get('consultor') || 'all',
+    sdr: searchParams.get('sdr') || 'all'
+  }), [searchParams]);
 
   // Função para buscar dados da API
   const fetchBIApiData = useCallback(async (isManualRefresh = false) => {
@@ -86,18 +90,25 @@ export default function App() {
     return () => clearInterval(interval);
   }, [fetchBIApiData]);
 
-  // Manipuladores de Filtro
+  // Manipuladores de Filtro que sincronizam com a URL do navegador
   const handleFilterChange = <K extends keyof FilterState>(key: K, value: FilterState[K]) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    const newParams = new URLSearchParams(searchParams);
+    const paramKey = key === 'mesAno' ? 'mes' : key;
+    if (value === 'all' || !value) {
+      newParams.delete(paramKey);
+    } else {
+      newParams.set(paramKey, String(value));
+    }
+    setSearchParams(newParams, { replace: true });
   };
 
   const handleResetFilters = () => {
-    setFilters({
-      mesAno: 'all',
-      hotel: 'all',
-      consultor: 'all',
-      sdr: 'all'
-    });
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('mes');
+    newParams.delete('hotel');
+    newParams.delete('consultor');
+    newParams.delete('sdr');
+    setSearchParams(newParams, { replace: true });
   };
 
   // Aplica filtros dinâmicos aos dados mantendo consistência estrita
@@ -147,13 +158,12 @@ export default function App() {
   }
 
   const auditIssuesCount = dataset.audit.pendenciasAuditadas;
+  const isSettingsPage = location.pathname.toLowerCase().startsWith('/configuracoes');
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar Lateral */}
+      {/* Sidebar Lateral com Links do React Router */}
       <Sidebar
-        currentView={currentView}
-        onSelectView={setCurrentView}
         isOpenMobile={isOpenMobile}
         onCloseMobile={() => setIsOpenMobile(false)}
         auditIssuesCount={auditIssuesCount}
@@ -165,9 +175,8 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col min-w-0 overflow-y-auto h-screen">
-        {/* Top Header */}
+        {/* Top Header com Botão de Copiar Link Compartilhável */}
         <TopHeader
-          currentView={currentView}
           onOpenMobile={() => setIsOpenMobile(true)}
           onRefresh={() => fetchBIApiData(true)}
           isRefreshing={isRefreshing}
@@ -177,8 +186,8 @@ export default function App() {
           sourceType={dataset.sourceType}
         />
 
-        {/* Global Filter Bar (Present in analytics views) */}
-        {currentView !== 'settings' && (
+        {/* Global Filter Bar (Presente nas abas analíticas, oculta em configurações) */}
+        {!isSettingsPage && (
           <FilterBar
             filters={filters}
             onChangeFilter={handleFilterChange}
@@ -192,7 +201,7 @@ export default function App() {
           />
         )}
 
-        {/* Banner de Aviso de Conexão Apps Script se houver */}
+        {/* Banner de Aviso de Conexão se houver */}
         {dataset.warning && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 sm:px-6 lg:px-8 text-xs text-amber-900 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -205,7 +214,7 @@ export default function App() {
             </div>
             <button
               type="button"
-              onClick={() => setCurrentView('settings')}
+              onClick={() => navigate(`/configuracoes${location.search}`)}
               className="font-semibold text-blue-700 hover:text-blue-900 underline whitespace-nowrap text-xs shrink-0"
             >
               Ver instruções
@@ -213,42 +222,29 @@ export default function App() {
           </div>
         )}
 
-        {/* Main View Port */}
+        {/* Main View Port com Rotas Reais do React Router */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {currentView === 'overview' && (
-            <OverviewView dataset={filteredDataset} />
-          )}
-
-          {currentView === 'monthly-flow' && (
-            <MonthlyFlowView dataset={filteredDataset} />
-          )}
-
-          {currentView === 'future-portfolio' && (
-            <FuturePortfolioView dataset={filteredDataset} />
-          )}
-
-          {currentView === 'confirmation-flow' && (
-            <ConfirmationFlowView dataset={filteredDataset} />
-          )}
-
-          {currentView === 'agenda' && (
-            <OperationalAgendaView dataset={filteredDataset} />
-          )}
-
-          {currentView === 'team' && (
-            <CommercialTeamView dataset={filteredDataset} />
-          )}
-
-          {currentView === 'audit' && (
-            <AuditView dataset={dataset} />
-          )}
-
-          {currentView === 'settings' && (
-            <SettingsView
-              dataset={dataset}
-              onRefreshData={() => fetchBIApiData(true)}
+          <Routes>
+            <Route path="/" element={<Navigate to={`/dashboard${location.search}`} replace />} />
+            <Route path="/dashboard" element={<OverviewView dataset={filteredDataset} />} />
+            <Route path="/evolucao-mensal" element={<MonthlyFlowView dataset={filteredDataset} />} />
+            <Route path="/carteira-futura" element={<FuturePortfolioView dataset={filteredDataset} />} />
+            <Route path="/fluxo-confirmacoes" element={<ConfirmationFlowView dataset={filteredDataset} />} />
+            <Route path="/agenda" element={<OperationalAgendaView dataset={filteredDataset} />} />
+            <Route path="/equipe" element={<CommercialTeamView dataset={filteredDataset} />} />
+            <Route path="/auditoria" element={<AuditView dataset={dataset} />} />
+            <Route
+              path="/configuracoes"
+              element={
+                <SettingsView
+                  dataset={dataset}
+                  onRefreshData={() => fetchBIApiData(true)}
+                />
+              }
             />
-          )}
+            {/* Fallback de rotas desconhecidas redireciona para /dashboard preservando filtros */}
+            <Route path="*" element={<Navigate to={`/dashboard${location.search}`} replace />} />
+          </Routes>
         </main>
       </div>
     </div>

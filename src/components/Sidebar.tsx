@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   CalendarDays,
@@ -12,20 +13,9 @@ import {
   Building2,
   RefreshCw
 } from 'lucide-react';
-
-export type NavViewId = 
-  | 'overview'
-  | 'monthly-flow'
-  | 'future-portfolio'
-  | 'confirmation-flow'
-  | 'agenda'
-  | 'team'
-  | 'audit'
-  | 'settings';
+import { ROUTES, NavViewId } from '../routes';
 
 interface SidebarProps {
-  currentView: NavViewId;
-  onSelectView: (view: NavViewId) => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   auditIssuesCount: number;
@@ -35,20 +25,18 @@ interface SidebarProps {
   sourceType?: 'apps_script' | 'google_sheet_direct';
 }
 
-const NAV_ITEMS: Array<{ id: NavViewId; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
-  { id: 'monthly-flow', label: 'Evolução Mensal', icon: CalendarDays },
-  { id: 'future-portfolio', label: 'Carteira Futura', icon: Briefcase },
-  { id: 'confirmation-flow', label: 'Fluxo de Confirmações', icon: GitFork },
-  { id: 'agenda', label: 'Agenda & Operação', icon: Calendar },
-  { id: 'team', label: 'Equipe Comercial', icon: Users },
-  { id: 'audit', label: 'Auditoria & Qualidade', icon: ShieldCheck },
-  { id: 'settings', label: 'Configurações & Conexão', icon: Settings }
-];
+const NAV_ICONS: Record<NavViewId, React.ComponentType<{ className?: string }>> = {
+  overview: LayoutDashboard,
+  'monthly-flow': CalendarDays,
+  'future-portfolio': Briefcase,
+  'confirmation-flow': GitFork,
+  agenda: Calendar,
+  team: Users,
+  audit: ShieldCheck,
+  settings: Settings
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  currentView,
-  onSelectView,
   isOpenMobile,
   onCloseMobile,
   auditIssuesCount,
@@ -57,6 +45,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isRefreshing,
   sourceType
 }) => {
+  const location = useLocation();
+  const currentPath = location.pathname.toLowerCase().replace(/\/$/, '') || '/dashboard';
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -76,7 +67,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Brand Header */}
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-5">
-          <div className="flex items-center gap-3">
+          <Link
+            to={{ pathname: '/dashboard', search: location.search }}
+            className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+            onClick={onCloseMobile}
+          >
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white font-bold tracking-tight shadow-xs">
               <Building2 className="h-5 w-5" />
             </div>
@@ -88,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 Controle Comercial · Mini-Vac
               </div>
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             onClick={onCloseMobile}
@@ -99,22 +94,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Navigation Links */}
+        {/* Navigation Links with Real React Router Links */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           <div className="px-3 py-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
             Coordenação Comercial
           </div>
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentView === item.id;
+          {ROUTES.map((route) => {
+            const Icon = NAV_ICONS[route.id];
+            const isActive = currentPath === route.path || (currentPath === '/' && route.path === '/dashboard');
             return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  onSelectView(item.id);
-                  onCloseMobile();
-                }}
+              <Link
+                key={route.id}
+                to={{ pathname: route.path, search: location.search }}
+                onClick={onCloseMobile}
                 className={`group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-medium transition-colors ${
                   isActive
                     ? 'bg-blue-600 text-white font-semibold shadow-xs'
@@ -127,9 +119,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
                     }`}
                   />
-                  <span>{item.label}</span>
+                  <span>{route.label}</span>
                 </div>
-                {item.id === 'audit' && auditIssuesCount > 0 && (
+                {route.id === 'audit' && auditIssuesCount > 0 && (
                   <span
                     className={`rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
                       isActive
@@ -140,7 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {auditIssuesCount}
                   </span>
                 )}
-              </button>
+              </Link>
             );
           })}
         </nav>
