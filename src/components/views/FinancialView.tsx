@@ -108,39 +108,38 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ dataset }) => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner de Contexto e Isolamento Estrito */}
-      <div className="rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50/80 via-white to-blue-50/50 p-4 sm:p-5 shadow-2xs">
+      {/* Top Banner Executivo */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white tracking-wide uppercase shadow-xs">
                 <CircleDollarSign className="h-3.5 w-3.5" />
-                Painel Financeiro Independente
+                Vendas em Valores (R$)
               </span>
-              <span className="text-slate-400 font-bold">·</span>
-              <span className="text-xs font-semibold text-slate-700">
+              <span className="text-slate-300 font-bold">·</span>
+              <span className="text-xs font-semibold text-slate-500">
                 Mês de Referência:
               </span>
               <span className="text-sm font-extrabold text-slate-900">
                 {summary.mesReferenciaLabel}
               </span>
             </div>
-            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed max-w-3xl">
-              Análise de faturamento baseada no <strong className="text-slate-900 font-semibold">VALOR PAGO (Coluna E)</strong> registrado por data de confirmação da reserva (Coluna A).
-              Os valores de <strong className="text-slate-900 font-semibold">ADICIONAL</strong> são complementos financeiros legítimos e <span className="underline decoration-slate-400">não geram novos casais</span> na contagem de atendimentos.
+            <p className="mt-1.5 text-xs text-slate-500 leading-relaxed max-w-3xl">
+              Faturamento consolidado das reservas confirmadas e complementos adicionais registrados no período.
             </p>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 text-xs">
-            <div className="rounded-lg bg-white px-3 py-2 border border-slate-200 text-slate-700 shadow-2xs">
-              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Ano de Referência</span>
+            <div className="rounded-lg bg-slate-50 px-3 py-2 border border-slate-200 text-slate-700 shadow-2xs">
+              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Exercício</span>
               <span className="font-bold text-slate-900 tabular-nums">
                 {summary.acumuladoAnoLabel}
               </span>
             </div>
-            <div className="rounded-lg bg-white px-3 py-2 border border-slate-200 text-slate-700 shadow-2xs">
-              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Total Acumulado</span>
-              <span className="font-bold text-emerald-700 tabular-nums font-mono">
+            <div className="rounded-lg bg-emerald-50 px-3 py-2 border border-emerald-200 text-emerald-950 shadow-2xs">
+              <span className="text-emerald-700 block text-[10px] uppercase font-semibold">Total Acumulado</span>
+              <span className="font-bold text-emerald-800 tabular-nums font-mono">
                 {formatBRLCompact(summary.acumuladoAno)}
               </span>
             </div>
@@ -631,29 +630,6 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ dataset }) => {
               })}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Banner de Auditoria e Transparência de Dados */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
-        <div className="flex items-start gap-3">
-          <div className="rounded-lg bg-blue-50 p-2 text-blue-600 shrink-0">
-            <Info className="h-5 w-5" />
-          </div>
-          <div className="flex-1 text-xs text-slate-600 space-y-1.5">
-            <h4 className="font-bold text-slate-900 text-xs">
-              Notas de Auditoria & Reconciliação Financeira
-            </h4>
-            <p>
-              • <strong className="text-slate-800">Referência Temporal:</strong> O agrupamento mensal e diário utiliza exclusivamente a <strong className="text-slate-800">DATA DA CONFIRMAÇÃO (Coluna A)</strong>. Não se afirma correspondência com a data efetiva de liquidação bancária sem comprovante específico.
-            </p>
-            <p>
-              • <strong className="text-slate-800">Isolamento Operacional:</strong> A contagem de casais, capacidade de atendimento e carteira futura permanecem estritamente calculadas sobre <strong className="text-slate-800">RESERVA NORMAL</strong> nas demais abas do LAGOA BI. Registros de <strong className="text-slate-800">ADICIONAL</strong> são somados exclusivamente em valores monetários (R$).
-            </p>
-            <p>
-              • <strong className="text-slate-800">Estatísticas da Base:</strong> Foram analisados {auditFinanceiro.totalRegistrosAnalisados.toLocaleString('pt-BR')} lançamentos financeiros na Coluna E ({auditFinanceiro.totalNormal.toLocaleString('pt-BR')} Reservas Normais e {auditFinanceiro.totalAdicional.toLocaleString('pt-BR')} Adicionais). Registros com valor zero ou vazio: {auditFinanceiro.registrosZeradosOuVazios}.
-            </p>
-          </div>
         </div>
       </div>
     </div>

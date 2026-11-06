@@ -245,7 +245,7 @@ export const OperationalAgendaView: React.FC<OperationalAgendaViewProps> = ({ da
                     </td>
                     <td className="px-5 py-2.5 text-center font-sans">
                       {d.isPast ? (
-                        <span className="text-slate-400 text-[11px]">Vencida</span>
+                        <span className="text-slate-400 text-[11px]">Realizada</span>
                       ) : (
                         <span className="text-emerald-700 font-semibold text-[11px]">Programada</span>
                       )}

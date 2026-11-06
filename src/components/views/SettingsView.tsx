@@ -7,7 +7,7 @@ interface SettingsViewProps {
   onRefreshData: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onRefreshData }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ dataset, onRefreshData }) => {
   const [appsScriptUrl, setAppsScriptUrl] = useState('');
   const [autoRefreshMinutes, setAutoRefreshMinutes] = useState(5);
   const [isSaving, setIsSaving] = useState(false);
@@ -163,6 +163,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefreshData }) => 
             <div className="rounded-lg bg-rose-50 p-3 border border-rose-200 text-xs text-rose-800 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
               <span>{saveError}</span>
+            </div>
+          )}
+
+          {dataset?.warning && (
+            <div className="rounded-lg bg-amber-50 p-3.5 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block mb-0.5">Informações de Integração com a Planilha</span>
+                <p className="text-amber-800 leading-relaxed">{dataset.warning}</p>
+              </div>
             </div>
           )}
         </form>

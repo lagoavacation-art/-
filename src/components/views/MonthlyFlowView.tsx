@@ -53,7 +53,7 @@ export const MonthlyFlowView: React.FC<MonthlyFlowViewProps> = ({ dataset }) => 
         <div className="flex items-center gap-2 mb-3">
           <HelpCircle className="h-5 w-5 text-blue-600" />
           <h2 className="text-sm font-bold text-slate-900">
-            Regras de Cálculo do Fluxo Mensal (Coordenação Comercial)
+            Metodologia Executiva do Fluxo Mensal
           </h2>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
@@ -160,7 +160,7 @@ export const MonthlyFlowView: React.FC<MonthlyFlowViewProps> = ({ dataset }) => 
                     <td className="px-5 py-3 text-center font-sans">
                       {isCurrent ? (
                         <span className="text-blue-700 font-semibold text-xs">
-                          Em andamento (corte {currentDate})
+                          Em andamento
                         </span>
                       ) : item.isPastMonth ? (
                         <span className="text-slate-400 text-xs">Concluído</span>

@@ -11,8 +11,8 @@ import { FilterBar } from './components/FilterBar';
 import { DisconnectedState } from './components/DisconnectedState';
 
 import { OverviewView } from './components/views/OverviewView';
+import { RealizedReservationsView } from './components/views/RealizedReservationsView';
 import { MonthlyFlowView } from './components/views/MonthlyFlowView';
-import { FuturePortfolioView } from './components/views/FuturePortfolioView';
 import { ConfirmationFlowView } from './components/views/ConfirmationFlowView';
 import { OperationalAgendaView } from './components/views/OperationalAgendaView';
 import { CommercialTeamView } from './components/views/CommercialTeamView';
@@ -130,7 +130,7 @@ export default function App() {
           <span>Carregando indicadores do LAGOA BI...</span>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Processando registros e regras de auditoria de casais
+          Atualizando dados comerciais
         </p>
       </div>
     );
@@ -202,34 +202,14 @@ export default function App() {
           />
         )}
 
-        {/* Banner de Aviso de Conexão se houver */}
-        {dataset.warning && (
-          <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 sm:px-6 lg:px-8 text-xs text-amber-900 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-amber-950 uppercase text-[10px] tracking-wider rounded bg-amber-200/80 px-1.5 py-0.5">
-                Aviso de Conexão
-              </span>
-              <span>
-                {dataset.warning}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(`/configuracoes${location.search}`)}
-              className="font-semibold text-blue-700 hover:text-blue-900 underline whitespace-nowrap text-xs shrink-0"
-            >
-              Ver instruções
-            </button>
-          </div>
-        )}
-
         {/* Main View Port com Rotas Reais do React Router */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <Routes>
             <Route path="/" element={<Navigate to={`/dashboard${location.search}`} replace />} />
             <Route path="/dashboard" element={<OverviewView dataset={filteredDataset} />} />
+            <Route path="/reservas-realizadas" element={<RealizedReservationsView dataset={filteredDataset} />} />
+            <Route path="/carteira-futura" element={<Navigate to={`/dashboard${location.search}`} replace />} />
             <Route path="/evolucao-mensal" element={<MonthlyFlowView dataset={filteredDataset} />} />
-            <Route path="/carteira-futura" element={<FuturePortfolioView dataset={filteredDataset} />} />
             <Route path="/fluxo-confirmacoes" element={<ConfirmationFlowView dataset={filteredDataset} />} />
             <Route path="/agenda" element={<OperationalAgendaView dataset={filteredDataset} />} />
             <Route path="/equipe" element={<CommercialTeamView dataset={filteredDataset} />} />

@@ -65,24 +65,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right zone: Contextual info, Copy Link, Refresh CTA */}
+      {/* Right zone: Discreet real-time status, Copy Link, Refresh CTA */}
       <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0">
-        <div className="hidden md:flex flex-col items-end text-xs">
-          <div className="flex items-center gap-1.5 text-slate-600 font-medium">
-            <Database className="h-3.5 w-3.5 text-blue-600" />
-            <span>Base: {sourceType === 'apps_script' ? 'Apps Script (/exec)' : 'Planilha Oficial'}</span>
-          </div>
-          <span className="text-[11px] text-slate-400">
-            Corte: {currentDateStr || 'Hoje'}
-          </span>
+        <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <span>Atualizado em tempo real</span>
         </div>
-
-        {auditIssuesCount > 0 && (
-          <div className="hidden lg:flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 border border-amber-200">
-            <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
-            <span className="tabular-nums">{auditIssuesCount} pendências</span>
-          </div>
-        )}
 
         {/* Botão Copiar link desta página */}
         <button

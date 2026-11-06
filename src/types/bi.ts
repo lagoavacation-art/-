@@ -281,6 +281,53 @@ export interface FinancialDataset {
   records?: FinancialRecord[];
 }
 
+export interface RealizedReservationDailyItem {
+  dataIso: string;
+  dataStr: string;
+  diaSemana: string;
+  quantidade: number;
+  acumulado: number;
+}
+
+export interface RealizedReservationMonthlyItem {
+  mesAno: string;
+  label: string;
+  quantidade: number;
+  mediaDiaria: number;
+  mesAnterior: number | null;
+  variacaoPct: number | null;
+  isCurrentMonth: boolean;
+}
+
+export interface RealizedReservationsSummary {
+  mesReferencia: string;
+  mesReferenciaLabel: string;
+  totalMes: number;
+  hoje: number;
+  naSemana: number;
+  mediaDiaria: number;
+  mesAnterior: number;
+  variacaoMoMPct: number;
+  acumuladoMes: number;
+  totalAnual: number;
+  totalAnualLabel: string;
+}
+
+export interface RealizedReservationsDistributionItem {
+  nome: string;
+  quantidade: number;
+  percentual: number;
+}
+
+export interface RealizedReservationsDataset {
+  summary: RealizedReservationsSummary;
+  dailyFlow: RealizedReservationDailyItem[];
+  monthlyFlow: RealizedReservationMonthlyItem[];
+  porConsultor: RealizedReservationsDistributionItem[];
+  porSdr: RealizedReservationsDistributionItem[];
+  porHotel: RealizedReservationsDistributionItem[];
+}
+
 export interface BIDataset {
   success: boolean;
   timestamp: string;
@@ -297,6 +344,7 @@ export interface BIDataset {
   teamData: CommercialTeamData;
   executiveSummary: ExecutiveSummary;
   financialData?: FinancialDataset;
+  realizedReservations?: RealizedReservationsDataset;
   availableFilters: {
     months: Array<{ value: string; label: string }>;
     hotels: string[];

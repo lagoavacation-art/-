@@ -31,6 +31,11 @@ import {
   FinancialTeamOrHotelMetric,
   FinancialRecord,
   FinancialDataset,
+  RealizedReservationDailyItem,
+  RealizedReservationMonthlyItem,
+  RealizedReservationsSummary,
+  RealizedReservationsDistributionItem,
+  RealizedReservationsDataset,
   BIDataset
 } from '../types/bi';
 
@@ -315,6 +320,7 @@ export function processRawSheetData(
   }));
 
   const financialData = calculateFinancialMetrics(financialRecords, todayUtc, targetSummaryYM);
+  const realizedReservations = calculateRealizedReservations(uniqueCouples, todayUtc, targetSummaryYM);
 
   return {
     success: true,
@@ -331,6 +337,7 @@ export function processRawSheetData(
     teamData,
     executiveSummary,
     financialData,
+    realizedReservations,
     availableFilters: {
       months: availableMonths,
       hotels,
@@ -434,6 +441,14 @@ export function filterDataset(
     };
   }
 
+  const targetRealizedYM = filters.mesAno !== 'all' ? filters.mesAno : dataset.executiveSummary.mesReferencia;
+  const realizedReservations = calculateRealizedReservations(
+    reconstructedCouples,
+    refDate,
+    targetRealizedYM,
+    (dataset as any)._allCouples || reconstructedCouples
+  );
+
   return {
     ...dataset,
     monthlyFlow,
@@ -444,6 +459,7 @@ export function filterDataset(
     teamData,
     executiveSummary,
     financialData,
+    realizedReservations,
     audit: {
       ...dataset.audit,
       casaisValidosContabilizados: reconstructedCouples.length
@@ -1447,5 +1463,234 @@ export function calculateFinancialMetrics(
       registrosValidos: validos
     },
     records
+  };
+}
+
+/**
+ * LAGOA BI — Motor de Cálculo Exclusivo para Reservas Realizadas
+ * 
+ * Regra Principal: Contabiliza exclusivamente registros RESERVA NORMAL (já filtrados e deduplicados por ID).
+ * Referência Temporal: Coluna A (Data da Confirmação) define o dia e o mês da realização da venda.
+ * Estritamente quantitativo (sem valores em R$).
+ */
+export function calculateRealizedReservations(
+  couples: InternalRecord[],
+  refDate: Date,
+  targetSummaryYM?: string,
+  allHistoricalCouples?: InternalRecord[]
+): RealizedReservationsDataset {
+  const currentYM = formatYearMonth(refDate);
+  const todayIso = refDate.toISOString().slice(0, 10);
+
+  // Início da semana atual (Segunda-feira)
+  const dayOfWeek = refDate.getUTCDay(); // 0 = Domingo, 1 = Segunda, etc.
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const mondayUtc = new Date(refDate);
+  mondayUtc.setUTCDate(refDate.getUTCDate() + diffToMonday);
+  mondayUtc.setUTCHours(0, 0, 0, 0);
+
+  // Registros para a evolução mensal (se passado conjunto histórico para comparação contínua)
+  const recordsForMonthly = allHistoricalCouples || couples;
+
+  // 1. Agrupamento Mensal
+  const monthsMap = new Map<string, number>();
+  for (const c of recordsForMonthly) {
+    const ym = c.confYM;
+    if (ym && ym !== 'SEM_DATA') {
+      monthsMap.set(ym, (monthsMap.get(ym) || 0) + 1);
+    }
+  }
+
+  const sortedYMs = Array.from(monthsMap.keys()).sort();
+  const monthlyFlow: RealizedReservationMonthlyItem[] = [];
+  let prevCount: number | null = null;
+
+  for (const ym of sortedYMs) {
+    const count = monthsMap.get(ym)!;
+    const [yStr, mStr] = ym.split('-');
+    const yNum = parseInt(yStr, 10);
+    const mNum = parseInt(mStr, 10);
+
+    // Dias decorridos para média diária
+    let diasDivisor: number;
+    if (ym === currentYM) {
+      diasDivisor = Math.max(refDate.getUTCDate(), 1);
+    } else {
+      // Total de dias no mês
+      diasDivisor = new Date(Date.UTC(yNum, mNum, 0)).getUTCDate();
+    }
+
+    const mediaDiaria = Math.round((count / diasDivisor) * 10) / 10;
+    const variacaoPct = prevCount !== null && prevCount > 0
+      ? Math.round((((count - prevCount) / prevCount) * 100) * 10) / 10
+      : null;
+
+    monthlyFlow.push({
+      mesAno: ym,
+      label: formatMonthLabel(ym),
+      quantidade: count,
+      mediaDiaria,
+      mesAnterior: prevCount,
+      variacaoPct,
+      isCurrentMonth: ym === currentYM
+    });
+
+    prevCount = count;
+  }
+
+  // Identificação do mês de referência do sumário
+  let summaryItem: RealizedReservationMonthlyItem | undefined;
+  if (targetSummaryYM && targetSummaryYM !== 'all') {
+    summaryItem = monthlyFlow.find(m => m.mesAno === targetSummaryYM);
+  }
+  if (!summaryItem) {
+    summaryItem = monthlyFlow.find(m => m.mesAno === currentYM) || monthlyFlow[monthlyFlow.length - 1];
+  }
+
+  const mesReferencia = summaryItem?.mesAno || currentYM;
+  const mesReferenciaLabel = summaryItem?.label || formatMonthLabel(currentYM);
+  const totalMes = summaryItem?.quantidade || 0;
+
+  // Comparação com mês anterior
+  const summaryIndex = summaryItem ? monthlyFlow.indexOf(summaryItem) : -1;
+  const prevMonthItem = summaryIndex > 0 ? monthlyFlow[summaryIndex - 1] : null;
+  const mesAnterior = prevMonthItem?.quantidade || 0;
+  const variacaoMoMPct = mesAnterior > 0
+    ? Math.round((((totalMes - mesAnterior) / mesAnterior) * 100) * 10) / 10
+    : 0;
+
+  // Média diária do mês selecionado
+  const [selYStr, selMStr] = mesReferencia.split('-');
+  const selYNum = parseInt(selYStr, 10);
+  const selMNum = parseInt(selMStr, 10);
+  const diasMesRef = mesReferencia === currentYM
+    ? Math.max(refDate.getUTCDate(), 1)
+    : new Date(Date.UTC(selYNum, selMNum, 0)).getUTCDate();
+  const mediaDiaria = Math.round((totalMes / diasMesRef) * 10) / 10;
+
+  // Total Hoje & Na Semana & Acumulado até hoje
+  let hoje = 0;
+  let naSemana = 0;
+  let acumuladoMes = 0;
+
+  for (const c of couples) {
+    if (!c.confDate || !c.confDateIso) continue;
+
+    if (c.confDateIso === todayIso) {
+      hoje++;
+    }
+
+    if (c.confDate >= mondayUtc && c.confDate <= refDate) {
+      naSemana++;
+    }
+
+    if (c.confYM === mesReferencia) {
+      if (mesReferencia === currentYM) {
+        if (c.confDate <= refDate) {
+          acumuladoMes++;
+        }
+      } else {
+        acumuladoMes++;
+      }
+    }
+  }
+
+  // Total Anual (Ano do mês de referência)
+  const [anoRef] = mesReferencia.split('-');
+  const anoPrefix = `${anoRef}-`;
+  const totalAnual = monthlyFlow
+    .filter(m => m.mesAno.startsWith(anoPrefix))
+    .reduce((acc, m) => acc + m.quantidade, 0);
+  const totalAnualLabel = `Total Anual ${anoRef}`;
+
+  // 2. Evolução Diária no mês de referência (com acumulado)
+  const dailyCountsMap = new Map<string, { count: number; dataStr: string }>();
+  for (const c of couples) {
+    if (c.confYM === mesReferencia && c.confDateIso) {
+      if (!dailyCountsMap.has(c.confDateIso)) {
+        dailyCountsMap.set(c.confDateIso, { count: 0, dataStr: c.confDateStr });
+      }
+      dailyCountsMap.get(c.confDateIso)!.count++;
+    }
+  }
+
+  const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const sortedDays = Array.from(dailyCountsMap.keys()).sort();
+  let acumuladoCorrido = 0;
+  const dailyFlow: RealizedReservationDailyItem[] = sortedDays.map(iso => {
+    const dData = dailyCountsMap.get(iso)!;
+    acumuladoCorrido += dData.count;
+    const dateObj = new Date(iso + 'T00:00:00Z');
+    const diaSemana = diasSemana[dateObj.getUTCDay()] || '';
+    return {
+      dataIso: iso,
+      dataStr: dData.dataStr,
+      diaSemana,
+      quantidade: dData.count,
+      acumulado: acumuladoCorrido
+    };
+  });
+
+  // 3. Distribuições por Consultor, SDR e Hotel (no conjunto filtrado atual)
+  const consultorMap = new Map<string, number>();
+  const sdrMap = new Map<string, number>();
+  const hotelMap = new Map<string, number>();
+
+  for (const c of couples) {
+    const consultor = c.consultor || 'NÃO INFORMADO';
+    consultorMap.set(consultor, (consultorMap.get(consultor) || 0) + 1);
+
+    const sdr = c.sdr || 'NÃO INFORMADO';
+    sdrMap.set(sdr, (sdrMap.get(sdr) || 0) + 1);
+
+    const hotel = c.hotel || 'NÃO INFORMADO';
+    hotelMap.set(hotel, (hotelMap.get(hotel) || 0) + 1);
+  }
+
+  const totalCouples = couples.length;
+
+  const porConsultor: RealizedReservationsDistributionItem[] = Array.from(consultorMap.entries())
+    .map(([nome, quantidade]) => ({
+      nome,
+      quantidade,
+      percentual: totalCouples > 0 ? Math.round(((quantidade / totalCouples) * 100) * 10) / 10 : 0
+    }))
+    .sort((a, b) => b.quantidade - a.quantidade);
+
+  const porSdr: RealizedReservationsDistributionItem[] = Array.from(sdrMap.entries())
+    .map(([nome, quantidade]) => ({
+      nome,
+      quantidade,
+      percentual: totalCouples > 0 ? Math.round(((quantidade / totalCouples) * 100) * 10) / 10 : 0
+    }))
+    .sort((a, b) => b.quantidade - a.quantidade);
+
+  const porHotel: RealizedReservationsDistributionItem[] = Array.from(hotelMap.entries())
+    .map(([nome, quantidade]) => ({
+      nome,
+      quantidade,
+      percentual: totalCouples > 0 ? Math.round(((quantidade / totalCouples) * 100) * 10) / 10 : 0
+    }))
+    .sort((a, b) => b.quantidade - a.quantidade);
+
+  return {
+    summary: {
+      mesReferencia,
+      mesReferenciaLabel,
+      totalMes,
+      hoje,
+      naSemana,
+      mediaDiaria,
+      mesAnterior,
+      variacaoMoMPct,
+      acumuladoMes,
+      totalAnual,
+      totalAnualLabel
+    },
+    dailyFlow,
+    monthlyFlow,
+    porConsultor,
+    porSdr,
+    porHotel
   };
 }

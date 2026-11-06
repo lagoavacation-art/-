@@ -83,8 +83,8 @@ export const ConfirmationFlowView: React.FC<ConfirmationFlowViewProps> = ({ data
               <p className="text-purple-800 text-[11px]">Apresentação após 3 meses ou mais.</p>
             </div>
             <div className="rounded-lg bg-slate-50 p-3 border border-slate-200 col-span-2 sm:col-span-1">
-              <span className="font-bold text-slate-800 block mb-0.5">Pendentes</span>
-              <p className="text-slate-600 text-[11px]">Sem data ou com datas inconsistentes.</p>
+              <span className="font-bold text-slate-800 block mb-0.5">A Programar</span>
+              <p className="text-slate-600 text-[11px]">Apresentações em fase de agendamento operacional.</p>
             </div>
           </div>
 

@@ -4,8 +4,8 @@
 
 export type NavViewId = 
   | 'overview'
+  | 'realized-reservations'
   | 'monthly-flow'
-  | 'future-portfolio'
   | 'confirmation-flow'
   | 'agenda'
   | 'team'
@@ -30,18 +30,18 @@ export const ROUTES: RouteConfig[] = [
     subtitle: 'Indicadores consolidados de casais confirmados e agenda de apresentações'
   },
   {
+    id: 'realized-reservations',
+    path: '/reservas-realizadas',
+    label: 'Reservas Realizadas',
+    title: 'Reservas Realizadas (Confirmações)',
+    subtitle: 'Quantitativo de reservas confirmadas por data de realização (Data da Confirmação)'
+  },
+  {
     id: 'monthly-flow',
     path: '/evolucao-mensal',
     label: 'Evolução Mensal',
     title: 'Evolução e Fluxo Mensal',
     subtitle: 'Abertura, novas entradas e agenda restante mês a mês'
-  },
-  {
-    id: 'future-portfolio',
-    path: '/carteira-futura',
-    label: 'Carteira Futura',
-    title: 'Carteira Geral Futura',
-    subtitle: 'Compromissos acumulados e distribuição de apresentações futuras'
   },
   {
     id: 'confirmation-flow',

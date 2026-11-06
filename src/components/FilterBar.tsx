@@ -42,7 +42,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             {totalFilteredCouples.toLocaleString('pt-BR')}
           </span>
           <span className="text-slate-500">
-            de {totalAllCouples.toLocaleString('pt-BR')} casais válidos
+            de {totalAllCouples.toLocaleString('pt-BR')} casais
           </span>
         </div>
 
