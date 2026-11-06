@@ -13,6 +13,7 @@ import { DisconnectedState } from './components/DisconnectedState';
 import { OverviewView } from './components/views/OverviewView';
 import { RealizedReservationsView } from './components/views/RealizedReservationsView';
 import { MonthlyFlowView } from './components/views/MonthlyFlowView';
+import { MonthlyFlowV2View } from './components/views/MonthlyFlowV2View';
 import { ConfirmationFlowView } from './components/views/ConfirmationFlowView';
 import { OperationalAgendaView } from './components/views/OperationalAgendaView';
 import { CommercialTeamView } from './components/views/CommercialTeamView';
@@ -210,6 +211,7 @@ export default function App() {
             <Route path="/reservas-realizadas" element={<RealizedReservationsView dataset={filteredDataset} />} />
             <Route path="/carteira-futura" element={<Navigate to={`/dashboard${location.search}`} replace />} />
             <Route path="/evolucao-mensal" element={<MonthlyFlowView dataset={filteredDataset} />} />
+            <Route path="/evolucao-mensal-v2" element={<MonthlyFlowV2View dataset={filteredDataset} />} />
             <Route path="/fluxo-confirmacoes" element={<ConfirmationFlowView dataset={filteredDataset} />} />
             <Route path="/agenda" element={<OperationalAgendaView dataset={filteredDataset} />} />
             <Route path="/equipe" element={<CommercialTeamView dataset={filteredDataset} />} />

@@ -12,7 +12,8 @@ import {
   X,
   Building2,
   RefreshCw,
-  CircleDollarSign
+  CircleDollarSign,
+  LineChart
 } from 'lucide-react';
 import { ROUTES, NavViewId } from '../routes';
 
@@ -29,11 +30,12 @@ interface SidebarProps {
 const NAV_ICONS: Record<NavViewId, React.ComponentType<{ className?: string }>> = {
   overview: LayoutDashboard,
   'realized-reservations': ClipboardCheck,
+  financial: CircleDollarSign,
   'monthly-flow': CalendarDays,
+  'monthly-flow-v2': LineChart,
   'confirmation-flow': GitFork,
   agenda: Calendar,
   team: Users,
-  financial: CircleDollarSign,
   audit: ShieldCheck,
   settings: Settings
 };

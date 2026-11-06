@@ -5,11 +5,12 @@
 export type NavViewId = 
   | 'overview'
   | 'realized-reservations'
+  | 'financial'
   | 'monthly-flow'
+  | 'monthly-flow-v2'
   | 'confirmation-flow'
   | 'agenda'
   | 'team'
-  | 'financial'
   | 'audit'
   | 'settings';
 
@@ -37,11 +38,25 @@ export const ROUTES: RouteConfig[] = [
     subtitle: 'Quantitativo de reservas confirmadas por data de realização (Data da Confirmação)'
   },
   {
+    id: 'financial',
+    path: '/vendas-valores',
+    label: 'Vendas em Valores (R$)',
+    title: 'Vendas em Valores (R$)',
+    subtitle: 'Faturamento registrado por data de confirmação (Reserva Normal + Adicionais)'
+  },
+  {
     id: 'monthly-flow',
     path: '/evolucao-mensal',
     label: 'Evolução Mensal',
     title: 'Evolução e Fluxo Mensal',
     subtitle: 'Abertura, novas entradas e agenda restante mês a mês'
+  },
+  {
+    id: 'monthly-flow-v2',
+    path: '/evolucao-mensal-v2',
+    label: 'Evolução Mensal - Visão II',
+    title: 'Evolução Mensal - Visão II',
+    subtitle: 'Dashboard Executivo de Acompanhamento Mensal, Movimentações e Tendências'
   },
   {
     id: 'confirmation-flow',
@@ -63,13 +78,6 @@ export const ROUTES: RouteConfig[] = [
     label: 'Equipe Comercial',
     title: 'Equipe Comercial (SDRs & Consultores)',
     subtitle: 'Volume de casais programados por responsável comercial'
-  },
-  {
-    id: 'financial',
-    path: '/vendas-valores',
-    label: 'Vendas em Valores (R$)',
-    title: 'Vendas em Valores (R$)',
-    subtitle: 'Faturamento registrado por data de confirmação (Reserva Normal + Adicionais)'
   },
   {
     id: 'audit',
